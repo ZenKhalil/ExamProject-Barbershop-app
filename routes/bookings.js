@@ -5,7 +5,6 @@ const db = require("../db");
 // GET request to retrieve unavailable time slots for a specific barber and date
 router.get("/unavailable-timeslots", (req, res) => {
   const barberId = req.query.barberId;
-  const date = req.query.date;
   const startDate = req.query.start;
   const endDate = req.query.end;
 
@@ -13,15 +12,6 @@ router.get("/unavailable-timeslots", (req, res) => {
   if (!barberId) {
     return res.status(400).json({ message: "Missing barberId parameter" });
   }
-
-  // Define queries for single date and date range
-  const singleDateQuery = `
-    SELECT 
-      booking_time AS startTime,
-      end_time AS endTime
-    FROM bookings
-    WHERE barber_id = ?
-    AND booking_date = ?`;
 
   const dateRangeQuery = `
     SELECT 
@@ -32,63 +22,50 @@ router.get("/unavailable-timeslots", (req, res) => {
     WHERE barber_id = ?
     AND booking_date BETWEEN ? AND ?`;
 
-  // Execute query based on input parameters
-  if (date) {
-    // Handling single date
-    db.query(singleDateQuery, [barberId, date], (err, results) => {
-      if (err) {
-        console.error("Error fetching unavailable time slots for single date:", err);
-        return res.status(500).json({
-          message: "Error fetching unavailable time slots",
-          error: err.message,
-        });
-      }
-      // Map the result to the correct format
-      const timeSlots = results.map((row) => ({
-        start: `${date}T${row.startTime}`,
-        end: `${date}T${row.endTime}`,
-      }));
-      res.status(200).json(timeSlots);
-    });
-  } else if (startDate && endDate) {
+  if (startDate && endDate) {
     // Handling date range
 db.query(dateRangeQuery, [barberId, startDate, endDate], (err, results) => {
   if (err) {
-    // handle error
+    console.error("Database query error:", err);
+    res.status(500).json({
+      message: "Error querying database for time slots",
+      error: err.message,
+    });
   } else {
     try {
       const timeSlots = results.map((row) => {
-        // Assuming the database returns the booking_date in UTC and startTime and endTime in local time
-        // First, get the date as a string in YYYY-MM-DD format
-        const bookingDateStr = row.booking_date.toISOString().split("T")[0];
+        // Create a new Date object from booking_date
+        const bookingDate = new Date(row.booking_date);
 
-        // Then, create a Date object for start and end using the local timezone
-        const startTimeStr = `${bookingDateStr}T${row.startTime}Z`; // 'Z' denotes UTC
-        const endTimeStr = `${bookingDateStr}T${row.endTime}Z`;
+        // Add one day to the booking date
+        bookingDate.setDate(bookingDate.getDate() + 1);
 
-        // Now, we convert them to Date objects
-        const start = new Date(startTimeStr);
-        const end = new Date(endTimeStr);
+        // Convert adjusted date to ISO string
+        const adjustedDateStr = bookingDate.toISOString().split("T")[0];
 
-        // Check if the dates are valid
-        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-          throw new Error("Invalid date constructed");
-        }
+        // Construct full ISO strings without UTC designation ('Z')
+        const startISO = `${adjustedDateStr}T${row.startTime}`;
+        const endISO = `${adjustedDateStr}T${row.endTime}`;
 
-        // Then return the slots in ISO format
+        // Create JavaScript Date objects
+        const start = new Date(startISO);
+        const end = new Date(endISO);
+
+        // Return ISO strings for valid Date objects
         return {
           start: start.toISOString(),
           end: end.toISOString(),
         };
       });
+
+      // Send the constructed time slots back in the response
       res.json(timeSlots);
     } catch (error) {
-      res
-        .status(500)
-        .json({
-          message: "Error constructing dates from database values",
-          error: error.toString(),
-        });
+      console.error("Error constructing dates:", error);
+      res.status(500).json({
+        message: "Error constructing dates from database values",
+        error: error.message,
+      });
     }
   }
 });
@@ -103,32 +80,21 @@ db.query(dateRangeQuery, [barberId, startDate, endDate], (err, results) => {
 
 
 // Helper function to calculate end time
+// Adjusting calculateEndTime function
 function calculateEndTime(startTime, durationInMinutes) {
-  if (!startTime) {
-    throw new Error("startTime is undefined");
-  }
-
-  // Extract hours and minutes from the startTime
+  // Ensure startTime is in UTC
   let [hours, minutes] = startTime.split(":").map(Number);
-
-  // Add duration to the minutes
   minutes += durationInMinutes;
 
-  // Handle minute overflow
+  // Handle minute and hour overflow
   while (minutes >= 60) {
-    hours += 1;
+    hours++;
     minutes -= 60;
   }
+  hours %= 24;
 
-  // Handle hour overflow and keep hours within the 24-hour format
-  hours = hours % 24;
-
-  // Format the hours and minutes to ensure two digits
-  const formattedHours = hours.toString().padStart(2, "0");
-  const formattedMinutes = minutes.toString().padStart(2, "0");
-
-  // Return the new time as a string
-  return `${formattedHours}:${formattedMinutes}`;
+  // Format and return time as UTC
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
 }
 
 
