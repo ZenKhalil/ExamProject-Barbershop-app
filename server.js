@@ -32,7 +32,7 @@ app.use("/api/bookings", bookingsRouter);
 app.use("/api/barbers", barbersRouter);
 app.use("/api/services", servicesRouter);
 app.use("/api/gallery", galleryRouter);
-app.use("/api/barber", barberAvailabilityRouter);
+app.use("/api/barbers", barberAvailabilityRouter);
 
 // Set up Nodemailer for sending email confirmations
 const transporter = nodemailer.createTransport({

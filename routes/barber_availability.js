@@ -3,23 +3,40 @@ const router = express.Router();
 const db = require("../db");
 const authenticateToken = require("../middleware/auth.js");
 
-// POST request to mark a barber as unavailable
-router.post("/", authenticateToken, (req, res) => {
-  const { barber_id, unavailable_date } = req.body;
+// Helper function to generate date range
+function generateDateRange(startDate, endDate) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const range = [];
+
+  for (let day = start; day <= end; day.setDate(day.getDate() + 1)) {
+    range.push(new Date(day).toISOString().split('T')[0]);
+  }
+
+  return range;
+}
+
+// POST request to mark a barber as unavailable for a range of dates
+router.post("/:barberId/unavailable-dates", authenticateToken, (req, res) => {
+  console.log("POST request received for /:barberId/unavailable-dates");
+  const barberId = req.params.barberId;
+  const { start_date, end_date } = req.body;
+
+  const dates = generateDateRange(start_date, end_date);
   const insertQuery =
-    "INSERT INTO barber_availability (barber_id, unavailable_date) VALUES (?, ?)";
-  db.query(insertQuery, [barber_id, unavailable_date], (err, result) => {
+    "INSERT INTO barber_availability (barber_id, unavailable_date) VALUES ?";
+
+  const values = dates.map((date) => [barberId, date]);
+
+  db.query(insertQuery, [values], (err, result) => {
     if (err) {
       console.error("Error marking barber as unavailable:", err);
-      res.status(500).send("Error adding unavailable date");
-    } else {
-      res
-        .status(201)
-        .json({
-          message: "Unavailable date added successfully",
-          availabilityId: result.insertId,
-        });
+      return res.status(500).send("Error adding unavailable dates");
     }
+    res.status(201).json({
+      message: "Unavailable dates added successfully",
+      affectedRows: result.affectedRows,
+    });
   });
 });
 
@@ -41,42 +58,157 @@ router.get("/:barberId/unavailable-dates", (req, res) => {
 });
 
 
-// PUT request to update barber's unavailable date
-router.put("/:availabilityId", authenticateToken, (req, res) => {
-  const { unavailable_date } = req.body;
-  const availabilityId = req.params.availabilityId;
-  const updateQuery =
-    "UPDATE barber_availability SET unavailable_date = ? WHERE availability_id = ?";
-  db.query(updateQuery, [unavailable_date, availabilityId], (err, result) => {
-    if (err) {
-      console.error("Error updating unavailable date:", err);
-      res.status(500).send("Error updating unavailable date");
-    } else if (result.affectedRows === 0) {
-      res.status(404).send("Unavailable date not found");
-    } else {
-      res
-        .status(200)
-        .json({ message: "Unavailable date updated successfully" });
+// Helper function to check if the date is valid
+function isValidDate(dateString) {
+  const regEx = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateString.match(regEx)) return false;  // Invalid format
+  const d = new Date(dateString);
+  const dNum = d.getTime();
+  if (!dNum && dNum !== 0) return false; // NaN value, Invalid date
+  return d.toISOString().slice(0,10) === dateString;
+}
+
+// PUT request to update a range of barber's unavailable dates
+router.put("/:barberId/unavailable-dates", authenticateToken, (req, res) => {
+  const barberId = req.params.barberId;
+  const { start_date, end_date, new_date } = req.body;
+
+  if (
+    !isValidDate(start_date) ||
+    !isValidDate(end_date) ||
+    !isValidDate(new_date)
+  ) {
+    return res.status(400).json({ message: "Invalid date format" });
+  }
+
+  if (new Date(start_date) >= new Date(end_date)) {
+    return res
+      .status(400)
+      .json({ message: "Start date must be before end date" });
+  }
+
+  // Start a transaction
+  db.beginTransaction((transactionErr) => {
+    if (transactionErr) {
+      console.error("Error starting transaction:", transactionErr);
+      return res.status(500).send("Error starting transaction");
     }
+
+    // Delete the old range of unavailable dates
+    const deleteQuery = `
+      DELETE FROM barber_availability 
+      WHERE barber_id = ? 
+      AND unavailable_date BETWEEN ? AND ?`;
+
+    db.query(deleteQuery, [barberId, start_date, end_date], (deleteErr, deleteResult) => {
+      if (deleteErr) {
+        console.error("Error deleting unavailable dates:", deleteErr);
+        return db.rollback(() => {
+          res.status(500).send("Error deleting unavailable dates");
+        });
+      }
+
+      // Generate the new range of unavailable dates
+      const newDates = generateDateRange(start_date, end_date);
+      const insertValues = newDates.map(date => [barberId, new_date]);
+      const insertQuery = `
+        INSERT INTO barber_availability (barber_id, unavailable_date) 
+        VALUES ?`;
+
+      db.query(insertQuery, [insertValues], (insertErr, insertResult) => {
+        if (insertErr) {
+          console.error("Error inserting new unavailable dates:", insertErr);
+          return db.rollback(() => {
+            res.status(500).send("Error inserting unavailable dates");
+          });
+        }
+
+        // Commit the transaction
+        db.commit((commitErr) => {
+          if (commitErr) {
+            console.error("Error committing transaction:", commitErr);
+            return db.rollback(() => {
+              res.status(500).send("Error committing transaction");
+            });
+          }
+
+          res.status(200).json({ message: "Unavailable dates updated successfully" });
+        });
+      });
+    });
   });
 });
 
-// DELETE request to remove barber's unavailable date
-router.delete("/:availabilityId", authenticateToken, (req, res) => {
-  const availabilityId = req.params.availabilityId;
-  const deleteQuery =
-    "DELETE FROM barber_availability WHERE availability_id = ?";
-  db.query(deleteQuery, [availabilityId], (err, result) => {
-    if (err) {
-      console.error("Error removing unavailable date:", err);
-      res.status(500).send("Error deleting unavailable date");
-    } else if (result.affectedRows === 0) {
-      res.status(404).send("Unavailable date not found");
-    } else {
-      res
-        .status(200)
-        .json({ message: "Unavailable date removed successfully" });
+// DELETE request to remove a single or a range of barber's unavailable dates
+router.delete("/:barberId/unavailable-dates", authenticateToken, (req, res) => {
+  const barberId = req.params.barberId;
+  const { start_date, end_date } = req.body;
+
+  // Check if at least start_date is provided and valid
+  if (!isValidDate(start_date)) {
+    return res.status(400).json({ message: "Invalid start date format" });
+  }
+
+  // If end_date is provided, check if it's valid and after start_date
+  if (end_date && (!isValidDate(end_date) || new Date(start_date) >= new Date(end_date))) {
+    return res
+      .status(400)
+      .json({ message: "Invalid end date format or start date must be before end date" });
+  }
+
+  // Start a transaction
+  db.beginTransaction((transactionErr) => {
+    if (transactionErr) {
+      console.error("Error starting transaction:", transactionErr);
+      return res.status(500).send("Error starting transaction");
     }
+
+    // Define the query based on whether an end date was provided
+    let deleteQuery;
+    let queryParams;
+    if (end_date) {
+      // Range deletion
+      deleteQuery = `
+        DELETE FROM barber_availability 
+        WHERE barber_id = ? 
+        AND unavailable_date BETWEEN ? AND ?`;
+      queryParams = [barberId, start_date, end_date];
+    } else {
+      // Single date deletion
+      deleteQuery = `
+        DELETE FROM barber_availability 
+        WHERE barber_id = ? 
+        AND unavailable_date = ?`;
+      queryParams = [barberId, start_date];
+    }
+
+    // Execute the delete query
+    db.query(deleteQuery, queryParams, (deleteErr, deleteResult) => {
+      if (deleteErr) {
+        console.error("Error deleting unavailable dates:", deleteErr);
+        return db.rollback(() => {
+          res.status(500).send("Error deleting unavailable dates");
+        });
+      }
+
+      if (deleteResult.affectedRows === 0) {
+        return db.rollback(() => {
+          res.status(404).json({ message: "No unavailable dates found to remove" });
+        });
+      }
+
+      // Commit the transaction
+      db.commit((commitErr) => {
+        if (commitErr) {
+          console.error("Error committing transaction:", commitErr);
+          return db.rollback(() => {
+            res.status(500).send("Error committing transaction");
+          });
+        }
+
+        res.status(200).json({ message: "Unavailable dates removed successfully", affectedRows: deleteResult.affectedRows });
+      });
+    });
   });
 });
 
