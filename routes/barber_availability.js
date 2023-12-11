@@ -71,17 +71,19 @@ function isValidDate(dateString) {
 // PUT request to update a range of barber's unavailable dates
 router.put("/:barberId/unavailable-dates", authenticateToken, (req, res) => {
   const barberId = req.params.barberId;
-  const { start_date, end_date, new_date } = req.body;
+  const { old_start_date, old_end_date, new_start_date, new_end_date } =
+    req.body;
 
   if (
-    !isValidDate(start_date) ||
-    !isValidDate(end_date) ||
-    !isValidDate(new_date)
+    !isValidDate(old_start_date) ||
+    !isValidDate(old_end_date) ||
+    !isValidDate(new_start_date) ||
+    !isValidDate(new_end_date)
   ) {
     return res.status(400).json({ message: "Invalid date format" });
   }
 
-  if (new Date(start_date) >= new Date(end_date)) {
+  if (new Date(new_start_date) >= new Date(new_end_date)) {
     return res
       .status(400)
       .json({ message: "Start date must be before end date" });
@@ -100,42 +102,66 @@ router.put("/:barberId/unavailable-dates", authenticateToken, (req, res) => {
       WHERE barber_id = ? 
       AND unavailable_date BETWEEN ? AND ?`;
 
-    db.query(deleteQuery, [barberId, start_date, end_date], (deleteErr, deleteResult) => {
-      if (deleteErr) {
-        console.error("Error deleting unavailable dates:", deleteErr);
-        return db.rollback(() => {
-          res.status(500).send("Error deleting unavailable dates");
-        });
-      }
-
-      // Generate the new range of unavailable dates
-      const newDates = generateDateRange(start_date, end_date);
-      const insertValues = newDates.map(date => [barberId, new_date]);
-      const insertQuery = `
-        INSERT INTO barber_availability (barber_id, unavailable_date) 
-        VALUES ?`;
-
-      db.query(insertQuery, [insertValues], (insertErr, insertResult) => {
-        if (insertErr) {
-          console.error("Error inserting new unavailable dates:", insertErr);
+    db.query(
+      deleteQuery,
+      [barberId, old_start_date, old_end_date],
+      (deleteErr, deleteResult) => {
+        if (deleteErr) {
+          console.error("Error deleting old unavailable dates:", deleteErr);
           return db.rollback(() => {
-            res.status(500).send("Error inserting unavailable dates");
+            res.status(500).send("Error deleting old unavailable dates");
           });
         }
 
-        // Commit the transaction
-        db.commit((commitErr) => {
-          if (commitErr) {
-            console.error("Error committing transaction:", commitErr);
-            return db.rollback(() => {
-              res.status(500).send("Error committing transaction");
-            });
-          }
+        // Generate the new range of unavailable dates
+        const newDates = generateDateRange(new_start_date, new_end_date);
+        const insertValues = newDates.map((date) => [barberId, date]);
 
-          res.status(200).json({ message: "Unavailable dates updated successfully" });
-        });
-      });
-    });
+        if (insertValues.length === 0) {
+          // No new dates to insert, so just commit the transaction
+          db.commit((commitErr) => {
+            if (commitErr) {
+              console.error("Error committing transaction:", commitErr);
+              return db.rollback(() => {
+                res.status(500).send("Error committing transaction");
+              });
+            }
+            res
+              .status(200)
+              .json({ message: "Unavailable dates updated successfully" });
+          });
+        } else {
+          const insertQuery = `
+          INSERT INTO barber_availability (barber_id, unavailable_date) 
+          VALUES ?`;
+
+          db.query(insertQuery, [insertValues], (insertErr, insertResult) => {
+            if (insertErr) {
+              console.error(
+                "Error inserting new unavailable dates:",
+                insertErr
+              );
+              return db.rollback(() => {
+                res.status(500).send("Error inserting new unavailable dates");
+              });
+            }
+
+            // Commit the transaction
+            db.commit((commitErr) => {
+              if (commitErr) {
+                console.error("Error committing transaction:", commitErr);
+                return db.rollback(() => {
+                  res.status(500).send("Error committing transaction");
+                });
+              }
+              res
+                .status(200)
+                .json({ message: "Unavailable dates updated successfully" });
+            });
+          });
+        }
+      }
+    );
   });
 });
 
