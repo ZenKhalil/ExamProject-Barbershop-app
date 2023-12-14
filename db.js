@@ -1,8 +1,9 @@
 const mysql = require("mysql");
 const fs = require("fs");
+const path = require("path"); 
 require("dotenv").config();
 
-const sslPath = "./DigiCertGlobalRootCA.crt.pem";
+const sslPath = path.join(__dirname, "DigiCertGlobalRootCA.crt.pem");
 
 const connection = mysql.createConnection({
   host: process.env.DB_HOST,
