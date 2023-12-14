@@ -79,6 +79,9 @@ Installation and Setup
 
 5.  Accessing the App: The app will be running at `http://localhost:[PORT]` where `[PORT]` is the port number you set in the `.env` file.
 
+## Access to deployed website
+https://examproject-testdata-3.azurewebsites.net/
+
 ### Detailed Routes Overview
 
 #### 1\. Admin Routes (`routes/admin.js`)
