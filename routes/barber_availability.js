@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../db");
+const db = require("../db.js");
 const authenticateToken = require("../middleware/auth.js");
 
 // Helper function to generate date range
@@ -10,7 +10,7 @@ function generateDateRange(startDate, endDate) {
   const range = [];
 
   for (let day = start; day <= end; day.setDate(day.getDate() + 1)) {
-    range.push(new Date(day).toISOString().split('T')[0]);
+    range.push(new Date(day).toISOString().split("T")[0]);
   }
 
   return range;
@@ -44,28 +44,55 @@ router.post("/:barberId/unavailable-dates", authenticateToken, (req, res) => {
 router.get("/:barberId/unavailable-dates", (req, res) => {
   const barberId = req.params.barberId;
   // Use DATE_FORMAT to format the date as a string 'YYYY-MM-DD'
-  const query = "SELECT DATE_FORMAT(unavailable_date, '%Y-%m-%d') AS unavailable_date FROM barber_availability WHERE barber_id = ?";
+  const query =
+    "SELECT DATE_FORMAT(unavailable_date, '%Y-%m-%d') AS unavailable_date FROM barber_availability WHERE barber_id = ?";
   db.query(query, [barberId], (err, results) => {
     if (err) {
       console.error("Error fetching unavailable dates:", err);
       res.status(500).send("Error retrieving unavailable dates");
     } else {
       // The results now already contain the date in 'YYYY-MM-DD' format as a string
-      const unavailableDates = results.map(record => record.unavailable_date);
+      const unavailableDates = results.map((record) => record.unavailable_date);
       res.status(200).json(unavailableDates);
     }
   });
 });
 
+router.get("/unavailable-dates2", (req, res) => {
+  // ændret af omar
+
+  const barberId = req.query.barberId;
+
+  if (!barberId) {
+    return res.status(400).send("Missing parameter: barberId");
+  }
+
+  const query =
+    "SELECT DATE_FORMAT(unavailable_date, '%Y-%m-%d') AS unavailable_date FROM barber_availability WHERE barber_id = ?";
+
+  db.query(query, [barberId], (error, results) => {
+    if (error) {
+      console.error(
+        "Error fetching unavailable dates for barber ID " + barberId,
+        error
+      );
+      res.status(500).send("An intern error has occured. Try again later.");
+      return;
+    }
+
+    const unavailableDates = results.map((record) => record.unavailable_date);
+    res.status(200).json(unavailableDates);
+  });
+});
 
 // Helper function to check if the date is valid
 function isValidDate(dateString) {
   const regEx = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateString.match(regEx)) return false;  // Invalid format
+  if (!dateString.match(regEx)) return false; // Invalid format
   const d = new Date(dateString);
   const dNum = d.getTime();
   if (!dNum && dNum !== 0) return false; // NaN value, Invalid date
-  return d.toISOString().slice(0,10) === dateString;
+  return d.toISOString().slice(0, 10) === dateString;
 }
 
 // PUT request to update a range of barber's unavailable dates
@@ -176,10 +203,16 @@ router.delete("/:barberId/unavailable-dates", authenticateToken, (req, res) => {
   }
 
   // If end_date is provided, check if it's valid and after start_date
-  if (end_date && (!isValidDate(end_date) || new Date(start_date) >= new Date(end_date))) {
+  if (
+    end_date &&
+    (!isValidDate(end_date) || new Date(start_date) >= new Date(end_date))
+  ) {
     return res
       .status(400)
-      .json({ message: "Invalid end date format or start date must be before end date" });
+      .json({
+        message:
+          "Invalid end date format or start date must be before end date",
+      });
   }
 
   // Start a transaction
@@ -219,7 +252,9 @@ router.delete("/:barberId/unavailable-dates", authenticateToken, (req, res) => {
 
       if (deleteResult.affectedRows === 0) {
         return db.rollback(() => {
-          res.status(404).json({ message: "No unavailable dates found to remove" });
+          res
+            .status(404)
+            .json({ message: "No unavailable dates found to remove" });
         });
       }
 
@@ -232,7 +267,12 @@ router.delete("/:barberId/unavailable-dates", authenticateToken, (req, res) => {
           });
         }
 
-        res.status(200).json({ message: "Unavailable dates removed successfully", affectedRows: deleteResult.affectedRows });
+        res
+          .status(200)
+          .json({
+            message: "Unavailable dates removed successfully",
+            affectedRows: deleteResult.affectedRows,
+          });
       });
     });
   });

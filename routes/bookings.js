@@ -24,51 +24,53 @@ router.get("/unavailable-timeslots", (req, res) => {
 
   if (startDate && endDate) {
     // Handling date range
-db.query(dateRangeQuery, [barberId, startDate, endDate], (err, results) => {
-  if (err) {
-    console.error("Database query error:", err);
-    res.status(500).json({
-      message: "Error querying database for time slots",
-      error: err.message,
+    db.query(dateRangeQuery, [barberId, startDate, endDate], (err, results) => {
+      if (err) {
+        console.error("Database query error:", err);
+        res.status(500).json({
+          message: "Error querying database for time slots",
+          error: err.message,
+        });
+      } else {
+        try {
+          const timeSlots = results.map((row) => {
+            // Create a new Date object from booking_date
+            const bookingDate = new Date(row.booking_date);
+
+            // Add one day to the booking date
+            bookingDate.setDate(bookingDate.getDate() + 1);
+
+            // Convert adjusted date to ISO string
+            const adjustedDateStr = bookingDate.toISOString().split("T")[0];
+
+            // Construct full ISO strings without UTC designation ('Z')
+            const startISO = `${adjustedDateStr}T${row.startTime}`;
+            const endISO = `${adjustedDateStr}T${row.endTime}`;
+
+            // Create JavaScript Date objects and subtract one hour
+            const start = new Date(startISO);
+            start.setHours(start.getHours() - 1);
+            const end = new Date(endISO);
+            end.setHours(end.getHours() - 1);
+
+            // Return ISO strings for adjusted Date objects
+            return {
+              start: start.toISOString(),
+              end: end.toISOString(),
+            };
+          });
+
+          // Send the constructed time slots back in the response
+          res.json(timeSlots);
+        } catch (error) {
+          console.error("Error constructing dates:", error);
+          res.status(500).json({
+            message: "Error constructing dates from database values",
+            error: error.message,
+          });
+        }
+      }
     });
-  } else {
-    try {
-      const timeSlots = results.map((row) => {
-        // Create a new Date object from booking_date
-        const bookingDate = new Date(row.booking_date);
-
-        // Add one day to the booking date
-        bookingDate.setDate(bookingDate.getDate() + 1);
-
-        // Convert adjusted date to ISO string
-        const adjustedDateStr = bookingDate.toISOString().split("T")[0];
-
-        // Construct full ISO strings without UTC designation ('Z')
-        const startISO = `${adjustedDateStr}T${row.startTime}`;
-        const endISO = `${adjustedDateStr}T${row.endTime}`;
-
-        // Create JavaScript Date objects
-        const start = new Date(startISO);
-        const end = new Date(endISO);
-
-        // Return ISO strings for valid Date objects
-        return {
-          start: start.toISOString(),
-          end: end.toISOString(),
-        };
-      });
-
-      // Send the constructed time slots back in the response
-      res.json(timeSlots);
-    } catch (error) {
-      console.error("Error constructing dates:", error);
-      res.status(500).json({
-        message: "Error constructing dates from database values",
-        error: error.message,
-      });
-    }
-  }
-});
   } else {
     // Missing required date parameters
     return res.status(400).json({
@@ -76,8 +78,6 @@ db.query(dateRangeQuery, [barberId, startDate, endDate], (err, results) => {
     });
   }
 });
-
-
 
 // Helper function to calculate end time
 // Adjusting calculateEndTime function
@@ -94,9 +94,10 @@ function calculateEndTime(startTime, durationInMinutes) {
   hours %= 24;
 
   // Format and return time as UTC
-  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+  return `${hours.toString().padStart(2, "0")}:${minutes
+    .toString()
+    .padStart(2, "0")}`;
 }
-
 
 // POST request to create a new booking
 router.post("/create", (req, res) => {
@@ -152,12 +153,12 @@ router.post("/create", (req, res) => {
             .map((row) => row.service_name)
             .join(", ");
           const totalDuration = serviceResults.reduce(
-  (sum, service) => sum + service.duration,
-  0
-);
+            (sum, service) => sum + service.duration,
+            0
+          );
 
-// Calculate end time based on total duration
-const endTime = calculateEndTime(booking_time, totalDuration);
+          // Calculate end time based on total duration
+          const endTime = calculateEndTime(booking_time, totalDuration);
 
           // Create the booking
           const insertBookingQuery = `
