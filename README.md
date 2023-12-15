@@ -64,20 +64,15 @@ Installation and Setup
 
     `npm install`
 
-3.  Environment Variables: Create a `.env` file in the root directory and set the following variables:
+3.  Start the Server:
 
-    -   `PORT`: The port number for the server.
-    -   `DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`: Database connection details.
-    -   `EMAIL_SERVICE`, `EMAIL_USERNAME`, `EMAIL_PASSWORD`: For Nodemailer configuration.
-    -   `JWT_SECRET`: Secret key for JWT.
-    -   `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`: Admin credentials.
-4.  Start the Server:
+    `node server.js` an error will occur but it is normal due to the certificate, but the server is still running.
 
-    sqlCopy code
+4. Download the frontend https://github.com/ZenKhalil/ExamProject-Barbershop-app-frontend
 
-    `npm start`
+5. Place in the same directory of backend and cd ExamProject-Barbershop-app-frontend
 
-5.  Accessing the App: The app will be running at `http://localhost:[PORT]` where `[PORT]` is the port number you set in the `.env` file.
+6. Run npm start and the server should be running at "localhost:1234"
 
 ## Access to deployed website
 https://examproject-testdata-3.azurewebsites.net/
