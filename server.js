@@ -28,8 +28,15 @@ const port = process.env.PORT || 3000;
 // Enable CORS for all routes
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "*", // Configure this properly for production
+    origin: [
+      "https://examproject-barbershop-app-frontend.onrender.com",
+      "http://localhost:3000",
+      "http://localhost:3001",
+      process.env.FRONTEND_URL,
+    ].filter(Boolean), // Remove any undefined values
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
@@ -37,6 +44,13 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(bodyParser.json({ limit: "10mb" })); // For parsing application/json
 app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" })); // For parsing application/x-www-form-urlencoded
+
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  console.log("Headers:", req.headers);
+  next();
+});
 
 // Test database connection endpoint
 app.get("/api/test-db", (req, res) => {
