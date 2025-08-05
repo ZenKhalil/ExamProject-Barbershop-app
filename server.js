@@ -30,6 +30,7 @@ app.use(
   cors({
     origin: [
       "https://examproject-barbershop-app-frontend.onrender.com",
+      "https://salonsindbad.pages.dev",
       "http://localhost:3000",
       "http://localhost:3001",
       process.env.FRONTEND_URL,
