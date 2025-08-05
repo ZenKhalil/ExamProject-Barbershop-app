@@ -10,8 +10,7 @@ const dbConfig = {
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT || 3306,
-  dateStrings: true, // This prevents automatic date conversion
-  timezone: "local", // Use local timezone instead of UTC
+  dateStrings: true,
   // AWS RDS specific settings
   ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false,
   // Connection pool settings only
@@ -83,6 +82,39 @@ pool.on("error", (err) => {
     console.error("Database connection was refused.");
   }
 });
+
+// Helper function to get a connection and handle transactions
+pool.getConnectionWithTransaction = function (callback) {
+  this.getConnection((err, connection) => {
+    if (err) return callback(err);
+
+    // Add transaction methods to the connection
+    connection.beginTransaction((err) => {
+      if (err) {
+        connection.release();
+        return callback(err);
+      }
+
+      // Add commit helper
+      connection.commitTransaction = function (callback) {
+        this.commit((err) => {
+          this.release();
+          callback(err);
+        });
+      };
+
+      // Add rollback helper
+      connection.rollbackTransaction = function (callback) {
+        this.rollback(() => {
+          this.release();
+          if (callback) callback();
+        });
+      };
+
+      callback(null, connection);
+    });
+  });
+};
 
 // Export the pool for use in other modules
 module.exports = pool;
