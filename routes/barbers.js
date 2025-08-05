@@ -1,9 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../db"); // Update the path if necessary
-const authenticateToken = require("../middleware/auth.js"); // Update the path if necessary
+const db = require("../db"); // Database connection
 
-// GET request to fetch all barber details
+// GET request to fetch barber details
 router.get("/", (req, res) => {
   const query = "SELECT * FROM barbers";
   db.query(query, (err, results) => {
@@ -15,67 +14,53 @@ router.get("/", (req, res) => {
   });
 });
 
-// POST request to add a new barber - Restricted to authenticated admin
-router.post("/", authenticateToken, (req, res) => {
-  const { name, email, phone } = req.body;
-  const query = "INSERT INTO barbers (name, email, phone) VALUES (?, ?, ?)";
-  db.query(query, [name, email, phone], (err, result) => {
-    if (err) {
-      res.status(500).send("Error adding new barber");
-    } else {
-      res
-        .status(201)
-        .json({
-          message: "Barber added successfully",
-          barberId: result.insertId,
-        });
-    }
-  });
-});
-
-// PUT request to update an existing barber - Restricted to authenticated admin
-router.put("/:barberId", authenticateToken, (req, res) => {
-  const barberId = req.params.barberId;
-  const { name, email, phone } = req.body;
-  const query =
-    "UPDATE barbers SET name = ?, email = ?, phone = ? WHERE barber_id = ?";
-  db.query(query, [name, email, phone, barberId], (err, result) => {
-    if (err) {
-      res.status(500).send("Error updating barber");
-    } else if (result.affectedRows === 0) {
-      res.status(404).send("Barber not found");
-    } else {
-      res.status(200).json({ message: "Barber updated successfully" });
-    }
-  });
-});
-
-// DELETE request to delete a barber - Restricted to authenticated admin
-router.delete("/:barberId", authenticateToken, (req, res) => {
-  const barberId = req.params.barberId;
-  const query = "DELETE FROM barbers WHERE barber_id = ?";
-  db.query(query, [barberId], (err, result) => {
-    if (err) {
-      res.status(500).send("Error deleting barber");
-    } else if (result.affectedRows === 0) {
-      res.status(404).send("Barber not found");
-    } else {
-      res.status(200).json({ message: "Barber deleted successfully" });
-    }
-  });
-});
-
-// GET request to fetch a specific barber's availability
-router.get("/:barberId/availability", authenticateToken, (req, res) => {
+// GET request to fetch barber availability
+router.get("/:barberId/availability", (req, res) => {
   const barberId = req.params.barberId;
   const query =
     "SELECT unavailable_date FROM barber_availability WHERE barber_id = ?";
   db.query(query, [barberId], (err, results) => {
     if (err) {
-      res.status(500).send("Error fetching barber's availability");
+      res.status(500).send("Error fetching availability");
     } else {
       res.status(200).json(results);
     }
+  });
+});
+
+// GET request to fetch unavailable dates for a barber
+router.get("/:barberId/unavailable-dates", (req, res) => {
+  const { barberId } = req.params;
+
+  const query = "SELECT unavailable_date FROM barber_availability WHERE barber_id = ?";
+  
+  db.query(query, [barberId], (err, results) => {
+    if (err) {
+      console.error("Error fetching unavailable dates:", err);
+      res.status(500).json({ message: "Error fetching unavailable dates", error: err.message });
+      return;
+    }
+    res.status(200).json(results.map(result => result.unavailable_date));
+  });
+});
+
+// GET request to fetch unavailable timeslots for a barber
+router.get("/:barberId/unavailable-timeslots", (req, res) => {
+  const { barberId } = req.params;
+  const { start, end } = req.query;
+
+  const query = `
+    SELECT start_time, end_time FROM booking_services
+    WHERE barber_id = ? AND booking_date BETWEEN ? AND ?
+  `;
+
+  db.query(query, [barberId, start, end], (err, results) => {
+    if (err) {
+      console.error("Error fetching unavailable timeslots:", err);
+      res.status(500).json({ message: "Error fetching unavailable timeslots", error: err.message });
+      return;
+    }
+    res.status(200).json(results);
   });
 });
 

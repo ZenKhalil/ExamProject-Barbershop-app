@@ -1,18 +1,12 @@
-const mysql = require("mysql");
-const fs = require("fs");
+const mysql = require("mysql2");
 require("dotenv").config();
 
-const sslPath = "./DigiCertGlobalRootCA.crt.pem";
-
 const connection = mysql.createConnection({
-  host: process.env.DB_HOST,
+  host: process.env.DB_HOST || '127.0.0.1',
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
-  timezone: "+01:00", // Set the timezone to Copenhagen's timezone (UTC+1)
-  ssl: {
-    ca: fs.readFileSync(sslPath),
-  },
+  dateStrings: true
 });
 
 connection.connect((err) => {
