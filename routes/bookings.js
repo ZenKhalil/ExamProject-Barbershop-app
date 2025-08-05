@@ -377,47 +377,61 @@ router.get("/", (req, res) => {
 router.delete("/delete/:bookingId", authenticateAdmin, (req, res) => {
   const bookingId = req.params.bookingId;
 
-  // Start a transaction
-  db.beginTransaction((err) => {
+  // Get a connection from the pool and start a transaction
+  db.getConnection((err, connection) => {
     if (err) {
-      console.error("Transaction Error:", err);
-      return res.status(500).send("Error starting transaction");
+      console.error("Connection Error:", err);
+      return res.status(500).json({ error: "Database connection error" });
     }
 
-    // Delete related booking_services records
-    const deleteServicesQuery =
-      "DELETE FROM booking_services WHERE booking_id = ?";
-    db.query(deleteServicesQuery, [bookingId], (err, result) => {
+    // Start a transaction on the individual connection
+    connection.beginTransaction((err) => {
       if (err) {
-        return db.rollback(() => {
-          console.error("Error deleting booking services:", err);
-          res.status(500).send("Error deleting booking services");
-        });
+        console.error("Transaction Error:", err);
+        connection.release();
+        return res.status(500).json({ error: "Error starting transaction" });
       }
 
-      // Delete the booking
-      const deleteBookingQuery = "DELETE FROM bookings WHERE booking_id = ?";
-      db.query(deleteBookingQuery, [bookingId], (err, result) => {
+      // Delete related booking_services records
+      const deleteServicesQuery = "DELETE FROM booking_services WHERE booking_id = ?";
+      connection.query(deleteServicesQuery, [bookingId], (err, result) => {
         if (err) {
-          return db.rollback(() => {
-            console.error("Error deleting booking:", err);
-            res.status(500).send("Error deleting booking");
-          });
-        } else if (result.affectedRows === 0) {
-          return db.rollback(() => {
-            res.status(404).send("No booking found with the given ID.");
-          });
-        } else {
-          db.commit((err) => {
-            if (err) {
-              return db.rollback(() => {
-                console.error("Transaction Commit Error:", err);
-                res.status(500).send("Error committing transaction");
-              });
-            }
-            res.status(200).send("Booking deleted successfully");
+          return connection.rollback(() => {
+            console.error("Error deleting booking services:", err);
+            connection.release();
+            res.status(500).json({ error: "Error deleting booking services" });
           });
         }
+
+        // Delete the booking
+        const deleteBookingQuery = "DELETE FROM bookings WHERE booking_id = ?";
+        connection.query(deleteBookingQuery, [bookingId], (err, result) => {
+          if (err) {
+            return connection.rollback(() => {
+              console.error("Error deleting booking:", err);
+              connection.release();
+              res.status(500).json({ error: "Error deleting booking" });
+            });
+          } else if (result.affectedRows === 0) {
+            return connection.rollback(() => {
+              connection.release();
+              res.status(404).json({ error: "No booking found with the given ID." });
+            });
+          } else {
+            connection.commit((err) => {
+              if (err) {
+                return connection.rollback(() => {
+                  console.error("Transaction Commit Error:", err);
+                  connection.release();
+                  res.status(500).json({ error: "Error committing transaction" });
+                });
+              }
+              connection.release();
+              console.log(`Booking ${bookingId} deleted successfully`);
+              res.status(200).json({ message: "Booking deleted successfully" });
+            });
+          }
+        });
       });
     });
   });
