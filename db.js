@@ -10,7 +10,8 @@ const dbConfig = {
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT || 3306,
-  dateStrings: true,
+  dateStrings: true, // This prevents automatic date conversion
+  timezone: "local", // Use local timezone instead of UTC
   // AWS RDS specific settings
   ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false,
   // Connection pool settings only
