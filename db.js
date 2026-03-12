@@ -1,19 +1,13 @@
 const mysql = require("mysql2");
 require("dotenv").config();
 
-// Configuration for AWS RDS
 const dbConfig = {
-  host:
-    process.env.DB_HOST ||
-    "barbershop-db.c3umamg4mgp7.eu-north-1.rds.amazonaws.com",
+  host: process.env.DB_HOST || "sql7.freesqldatabase.com",
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT || 3306,
   dateStrings: true,
-  // AWS RDS specific settings
-  ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false,
-  // Connection pool settings only
   connectionLimit: 10,
   queueLimit: 0,
   waitForConnections: true,
@@ -25,7 +19,7 @@ const pool = mysql.createPool(dbConfig);
 // Test the connection
 pool.getConnection((err, connection) => {
   if (err) {
-    console.error("Error connecting to the AWS RDS database:", err.message);
+    console.error("Error connecting to the database:", err.message);
     console.error("Error code:", err.code);
     console.error("Error details:", {
       host: dbConfig.host,
@@ -34,22 +28,17 @@ pool.getConnection((err, connection) => {
       port: dbConfig.port,
     });
 
-    // Common error messages and solutions
     if (err.code === "ENOTFOUND") {
-      console.error(
-        "Solution: Check if the RDS endpoint is correct and accessible"
-      );
+      console.error("Solution: Check if the database host is correct and accessible");
     } else if (err.code === "ER_ACCESS_DENIED_ERROR") {
       console.error("Solution: Check your database username and password");
     } else if (err.code === "ECONNREFUSED") {
-      console.error(
-        "Solution: Check if the RDS instance is running and security groups allow access"
-      );
+      console.error("Solution: Check if the database is running and accessible");
     }
     return;
   }
 
-  console.log("Successfully connected to AWS RDS MySQL database");
+  console.log("Successfully connected to MySQL database");
   console.log("Connection ID:", connection.threadId);
 
   // Test query
@@ -65,9 +54,7 @@ pool.getConnection((err, connection) => {
 
 // Handle pool errors
 pool.on("connection", (connection) => {
-  console.log(
-    "New database connection established as id " + connection.threadId
-  );
+  console.log("New database connection established as id " + connection.threadId);
 });
 
 pool.on("error", (err) => {
