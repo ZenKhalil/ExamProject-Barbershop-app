@@ -310,9 +310,6 @@ router.post("/create", async (req, res) => {
       ],
     };
 
-    await sendEmail(customerMailOptions);
-    console.log(`Confirmation email sent to ${customer_email}`);
-
     // Define email options for owner with ICS attachment
     const ownerMailOptions = {
       from: EMAIL_USERNAME,
@@ -329,9 +326,18 @@ router.post("/create", async (req, res) => {
       ],
     };
 
-    console.log("Sending notification email to owner...");
-    await sendEmail(ownerMailOptions);
-    console.log("Owner email sent successfully.");
+    // Send emails — wrapped in separate try/catch so email failure doesn't affect booking response
+    try {
+      await sendEmail(customerMailOptions);
+      console.log(`Confirmation email sent to ${customer_email}`);
+
+      console.log("Sending notification email to owner...");
+      await sendEmail(ownerMailOptions);
+      console.log("Owner email sent successfully.");
+    } catch (emailError) {
+      console.error("Failed to send confirmation emails:", emailError.message);
+      // Booking is already saved — email failure should not return an error to the user
+    }
 
     // Send success response
     return res.status(201).json({
@@ -339,16 +345,10 @@ router.post("/create", async (req, res) => {
       bookingId: bookingId,
     });
   } catch (error) {
-    console.error("Error during booking creation or email sending:", error);
+    console.error("Error during booking creation:", error);
 
-    if (error.message.includes("Time slot is already booked")) {
+    if (error.message && error.message.includes("Time slot is already booked")) {
       return res.status(400).json({ message: "Time slot is already booked" });
-    } else if (error.response) {
-      return res.status(500).json({
-        message: "Booking created but failed to send confirmation emails",
-        bookingId: null,
-        error: error.message,
-      });
     } else {
       return res.status(500).json({
         message: "Error creating booking",
