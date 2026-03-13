@@ -327,17 +327,14 @@ router.post("/create", async (req, res) => {
     };
 
     // Send emails — wrapped in separate try/catch so email failure doesn't affect booking response
-    try {
-      await sendEmail(customerMailOptions);
-      console.log(`Confirmation email sent to ${customer_email}`);
-
-      console.log("Sending notification email to owner...");
-      await sendEmail(ownerMailOptions);
-      console.log("Owner email sent successfully.");
-    } catch (emailError) {
-      console.error("Failed to send confirmation emails:", emailError.message);
-      // Booking is already saved — email failure should not return an error to the user
-    }
+    // Fire emails in background — don't await so response is instant
+    sendEmail(customerMailOptions)
+      .then(() => console.log(`Confirmation email sent to ${customer_email}`))
+      .catch((err) => console.error("Failed to send customer email:", err.message));
+    
+    sendEmail(ownerMailOptions)
+      .then(() => console.log("Owner email sent successfully."))
+      .catch((err) => console.error("Failed to send owner email:", err.message));
 
     // Send success response
     return res.status(201).json({
