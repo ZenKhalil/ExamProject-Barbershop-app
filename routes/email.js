@@ -1,36 +1,43 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Create a transporter using Brevo SMTP
+const transporter = nodemailer.createTransport({
+  host: 'smtp-relay.brevo.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.BREVO_SMTP_USER,
+    pass: process.env.BREVO_SMTP_PASS,
+  },
+});
+
+// Verify the transporter configuration
+transporter.verify(function (error, success) {
+  if (error) {
+    console.error('Error with email transporter:', error);
+  } else {
+    console.log('Email transporter is ready to send messages');
+  }
+});
 
 /**
- * Sends an email using Resend.
- * @param {Object} mailOptions - Options for the email (from, to, subject, text, attachments).
+ * Sends an email using the configured Brevo SMTP transporter.
+ * @param {Object} mailOptions - Options for the email.
  * @returns {Promise} - Resolves when the email is sent successfully.
  */
-const sendEmail = async (mailOptions) => {
-  const { data, error } = await resend.emails.send({
-    from: 'Salon Sindbad <onboarding@resend.dev>',
-    to: mailOptions.to,
-    subject: mailOptions.subject,
-    text: mailOptions.text,
-    attachments: mailOptions.attachments
-      ? mailOptions.attachments.map((attachment) => ({
-          filename: attachment.filename,
-          content: Buffer.isBuffer(attachment.content)
-            ? attachment.content
-            : Buffer.from(attachment.content),
-        }))
-      : undefined,
+const sendEmail = (mailOptions) => {
+  return new Promise((resolve, reject) => {
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Error sending email:', error);
+        reject(error);
+      } else {
+        console.log('Email sent:', info.response);
+        resolve(info);
+      }
+    });
   });
-
-  if (error) {
-    console.error('Error sending email:', error);
-    throw new Error(error.message);
-  }
-
-  console.log('Email sent:', data);
-  return data;
 };
 
 module.exports = { sendEmail };
