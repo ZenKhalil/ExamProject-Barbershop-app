@@ -21,6 +21,7 @@
     "mysql": "^2.18.1",
     "mysql2": "^3.9.7",
     "nodemailer": "^6.9.15",
-    "ntp-client": "^0.5.3"
+    "ntp-client": "^0.5.3",
+    "resend": "^6.9.3"
   }
 }
