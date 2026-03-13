@@ -1,43 +1,39 @@
-const nodemailer = require('nodemailer');
+const Brevo = require('@getbrevo/brevo');
 require('dotenv').config();
 
-// Create a transporter using Brevo SMTP
-const transporter = nodemailer.createTransport({
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.BREVO_SMTP_USER,
-    pass: process.env.BREVO_SMTP_PASS,
-  },
-});
-
-// Verify the transporter configuration
-transporter.verify(function (error, success) {
-  if (error) {
-    console.error('Error with email transporter:', error);
-  } else {
-    console.log('Email transporter is ready to send messages');
-  }
-});
+const apiInstance = new Brevo.TransactionalEmailsApi();
+apiInstance.authentications['apiKey'].apiKey = process.env.BREVO_API_KEY;
 
 /**
- * Sends an email using the configured Brevo SMTP transporter.
- * @param {Object} mailOptions - Options for the email.
+ * Sends an email using the Brevo HTTP API.
+ * @param {Object} mailOptions - Options for the email (from, to, subject, text, attachments).
  * @returns {Promise} - Resolves when the email is sent successfully.
  */
-const sendEmail = (mailOptions) => {
-  return new Promise((resolve, reject) => {
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error('Error sending email:', error);
-        reject(error);
-      } else {
-        console.log('Email sent:', info.response);
-        resolve(info);
-      }
-    });
-  });
+const sendEmail = async (mailOptions) => {
+  const sendSmtpEmail = new Brevo.SendSmtpEmail();
+
+  sendSmtpEmail.sender = { email: process.env.EMAIL_USERNAME, name: 'Salon Sindbad' };
+  sendSmtpEmail.to = [{ email: mailOptions.to }];
+  sendSmtpEmail.subject = mailOptions.subject;
+  sendSmtpEmail.textContent = mailOptions.text;
+
+  if (mailOptions.attachments && mailOptions.attachments.length > 0) {
+    sendSmtpEmail.attachment = mailOptions.attachments.map((att) => ({
+      name: att.filename,
+      content: Buffer.isBuffer(att.content)
+        ? att.content.toString('base64')
+        : Buffer.from(att.content).toString('base64'),
+    }));
+  }
+
+  try {
+    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log('Email sent:', data.messageId);
+    return data;
+  } catch (error) {
+    console.error('Error sending email:', error);
+    throw error;
+  }
 };
 
 module.exports = { sendEmail };
