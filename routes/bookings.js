@@ -37,9 +37,8 @@ const queryDatabase = (query, params) => {
 
 // Function to format date consistently (avoid timezone shifts)
 const formatDateForDB = (dateString) => {
-  // Ensure we're working with the date as-is, without timezone conversion
-  const date = new Date(dateString + "T00:00:00");
-  return date.toISOString().split("T")[0];
+  // Already in YYYY-MM-DD format, no conversion needed
+  return dateString;
 };
 
 // Function to create a local datetime without timezone conversion

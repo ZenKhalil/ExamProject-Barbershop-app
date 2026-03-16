@@ -33,6 +33,7 @@ app.use(
       "https://salonsindbad.pages.dev",
       "http://localhost:3000",
       "http://localhost:3001",
+      "http://localhost:1234", // Parcel dev server
       process.env.FRONTEND_URL,
     ].filter(Boolean), // Remove any undefined values
     credentials: true,
