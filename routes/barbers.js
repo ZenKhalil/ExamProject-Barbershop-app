@@ -17,13 +17,13 @@ router.get("/", (req, res) => {
 
 // POST — add a new barber (admin only)
 router.post("/", authenticateAdmin, (req, res) => {
-  const { name } = req.body;
+  const { name, email } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: "Barber name is required" });
   }
 
-  const query = "INSERT INTO barbers (name) VALUES (?)";
-  db.query(query, [name.trim()], (err, result) => {
+  const query = "INSERT INTO barbers (name, email) VALUES (?, ?)";
+  db.query(query, [name.trim(), email || null], (err, result) => {
     if (err) {
       console.error("Error adding barber:", err);
       return res.status(500).json({ error: "Error adding barber" });
@@ -32,20 +32,21 @@ router.post("/", authenticateAdmin, (req, res) => {
       message: "Barber added successfully",
       barber_id: result.insertId,
       name: name.trim(),
+      email: email || null,
     });
   });
 });
 
-// PUT — update barber name (admin only)
+// PUT — update barber name and email (admin only)
 router.put("/:barberId", authenticateAdmin, (req, res) => {
   const { barberId } = req.params;
-  const { name } = req.body;
+  const { name, email } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: "Barber name is required" });
   }
 
-  const query = "UPDATE barbers SET name = ? WHERE barber_id = ?";
-  db.query(query, [name.trim(), barberId], (err, result) => {
+  const query = "UPDATE barbers SET name = ?, email = ? WHERE barber_id = ?";
+  db.query(query, [name.trim(), email || null, barberId], (err, result) => {
     if (err) {
       console.error("Error updating barber:", err);
       return res.status(500).json({ error: "Error updating barber" });
