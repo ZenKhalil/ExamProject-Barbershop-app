@@ -86,7 +86,7 @@ app.use("/api/barbers", barbersRouter);
 app.use("/api/services", servicesRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/admin/settings", settingsRouter);
-app.use("/api/barber-availability", barberAvailabilityRouter); // Fixed route path
+app.use("/api/barbers", barberAvailabilityRouter); // Fixed route path
 //app.use("/api/map", mapRouter);
 
 // Set up Nodemailer for sending email confirmations
