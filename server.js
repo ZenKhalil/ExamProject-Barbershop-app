@@ -77,6 +77,7 @@ const barbersRouter = require("./routes/barbers");
 const servicesRouter = require("./routes/services");
 const adminRouter = require("./routes/admin");
 const barberAvailabilityRouter = require("./routes/barber_availability");
+const settingsRouter = require("./routes/settings");
 //const mapRouter = require("./routes/map");
 
 // Use the routes
@@ -84,6 +85,7 @@ app.use("/api/bookings", bookingsRouter);
 app.use("/api/barbers", barbersRouter);
 app.use("/api/services", servicesRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/admin/settings", settingsRouter);
 app.use("/api/barber-availability", barberAvailabilityRouter); // Fixed route path
 //app.use("/api/map", mapRouter);
 
