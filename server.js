@@ -48,6 +48,7 @@ const adminRouter = require("./routes/admin");
 const barberAvailabilityRouter = require("./routes/barber_availability");
 const settingsRouter = require("./routes/settings");
 const legalRouter = require("./routes/legal");
+const galleryRouter = require("./routes/gallery");
 
 // Mount routes
 app.use("/api/bookings", bookingsRouter);
@@ -57,6 +58,7 @@ app.use("/api/services", servicesRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/admin/settings", settingsRouter);
 app.use("/api/legal", legalRouter);
+app.use("/api/gallery", galleryRouter);
 
 // Email transporter
 const transporter = nodemailer.createTransport({
