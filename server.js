@@ -1,75 +1,44 @@
-// Import necessary modules
 const express = require("express");
 const dotenv = require("dotenv");
 const bodyParser = require("body-parser");
 const nodemailer = require("nodemailer");
-const cors = require("cors"); // CORS module for handling Cross-Origin Resource Sharing
-const jwt = require("jsonwebtoken"); // Added for JWT handling
-const db = require("./db"); // Import the database connection
+const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const db = require("./db");
+const { startCleanupSchedule } = require("./cleanup");
 
-// Load environment variables from .env file
 dotenv.config();
 
-// Log environment variables for debugging (remove in production)
+// Log config (masked)
 console.log("Admin Username:", process.env.ADMIN_USERNAME);
-console.log(
-  "Admin Password:",
-  process.env.ADMIN_PASSWORD ? "***SET***" : "NOT SET"
-);
+console.log("Admin Password:", process.env.ADMIN_PASSWORD ? "***SET***" : "NOT SET");
 console.log("JWT Secret:", process.env.JWT_SECRET ? "***SET***" : "NOT SET");
 console.log("DB Host:", process.env.DB_HOST);
 console.log("DB User:", process.env.DB_USER);
 console.log("DB Name:", process.env.DB_NAME);
 
-// Create an Express server
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Enable CORS for all routes
+// CORS
 app.use(
   cors({
     origin: [
-      "https://examproject-barbershop-app-frontend.onrender.com",
       "https://salonsindbad.pages.dev",
       "http://localhost:3000",
       "http://localhost:3001",
-      "http://localhost:1234", // Parcel dev server
+      "http://localhost:1234",
       process.env.FRONTEND_URL,
-    ].filter(Boolean), // Remove any undefined values
+    ].filter(Boolean),
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// Middlewares
+// Body parsing
 app.use(express.json({ limit: "10mb" }));
-app.use(bodyParser.json({ limit: "10mb" })); // For parsing application/json
-app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" })); // For parsing application/x-www-form-urlencoded
-
-// Debug middleware to log all requests
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  console.log("Headers:", req.headers);
-  next();
-});
-
-// Test database connection endpoint
-app.get("/api/test-db", (req, res) => {
-  db.query("SELECT 1 as test", (err, results) => {
-    if (err) {
-      console.error("Database test failed:", err);
-      return res.status(500).json({
-        error: "Database connection failed",
-        details: err.message,
-      });
-    }
-    res.json({
-      message: "Database connection successful",
-      results: results,
-    });
-  });
-});
+app.use(bodyParser.urlencoded({ extended: true, limit: "10mb" }));
 
 // Import routes
 const bookingsRouter = require("./routes/bookings");
@@ -78,20 +47,18 @@ const servicesRouter = require("./routes/services");
 const adminRouter = require("./routes/admin");
 const barberAvailabilityRouter = require("./routes/barber_availability");
 const settingsRouter = require("./routes/settings");
-//const mapRouter = require("./routes/map");
 const legalRouter = require("./routes/legal");
 
-// Use the routes
+// Mount routes
 app.use("/api/bookings", bookingsRouter);
 app.use("/api/barbers", barbersRouter);
+app.use("/api/barbers", barberAvailabilityRouter);
 app.use("/api/services", servicesRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/admin/settings", settingsRouter);
-app.use("/api/barbers", barberAvailabilityRouter); // Fixed route path
-//app.use("/api/map", mapRouter);
 app.use("/api/legal", legalRouter);
 
-// Set up Nodemailer for sending email confirmations
+// Email transporter
 const transporter = nodemailer.createTransport({
   service: process.env.EMAIL_SERVICE,
   auth: {
@@ -100,74 +67,51 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Test email configuration
-const testEmailConfig = () => {
-  if (process.env.EMAIL_USERNAME && process.env.EMAIL_PASSWORD) {
-    transporter.verify((error, success) => {
-      if (error) {
-        console.log("Email configuration error:", error);
-      } else {
-        console.log("Email server is ready to take our messages");
-      }
-    });
-  }
-};
+if (process.env.EMAIL_USERNAME && process.env.EMAIL_PASSWORD) {
+  transporter.verify((error) => {
+    if (error) {
+      console.log("Email configuration error:", error.message);
+    } else {
+      console.log("Email server is ready to take our messages");
+    }
+  });
+}
 
-testEmailConfig();
-
-// This middleware is used to authenticate JWT tokens on protected routes.
+// JWT auth middleware (available for routes that need it)
 const authenticateJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (authHeader) {
-    const token = authHeader.split(" ")[1];
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-      if (err) {
-        console.error("JWT verification error:", err);
-        return res.status(403).json({ error: "Invalid or expired token" });
-      }
-      req.user = user;
-      next();
-    });
-  } else {
-    res.status(401).json({ error: "Authorization header missing" });
+  if (!authHeader) {
+    return res.status(401).json({ error: "Authorization header missing" });
   }
+  const token = authHeader.split(" ")[1];
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: "Invalid or expired token" });
+    }
+    req.user = user;
+    next();
+  });
 };
 
-// Health check endpoint
+// Health check
 app.get("/health", (req, res) => {
-  res.json({
-    status: "OK",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
-  });
+  res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
-// Basic route
+// Root
 app.get("/", (req, res) => {
-  res.json({
-    message: "Barbershop API is running",
-    version: "1.0.0",
-  });
+  res.json({ message: "Barbershop API is running", version: "1.0.0" });
 });
 
-// Error handling middleware
+// Error handler
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
-  res.status(500).json({
-    error: "Internal server error",
-    message:
-      process.env.NODE_ENV === "development"
-        ? err.message
-        : "Something went wrong",
-  });
+  res.status(500).json({ error: "Internal server error" });
 });
 
-// 404 handler
+// 404
 app.use("*", (req, res) => {
-  res.status(404).json({
-    error: "Route not found",
-    path: req.originalUrl,
-  });
+  res.status(404).json({ error: "Route not found", path: req.originalUrl });
 });
 
 // Graceful shutdown
@@ -187,8 +131,11 @@ process.on("SIGINT", () => {
   });
 });
 
-// Start the server
+// Start server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
   console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+
+  // Start GDPR data retention cleanup (deletes bookings older than 12 months)
+  startCleanupSchedule();
 });
