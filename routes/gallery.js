@@ -4,14 +4,42 @@ const db = require("../db");
 const authenticateAdmin = require("./authenticateAdmin");
 
 // GET — fetch all gallery images (public)
+// Custom sort_order takes priority; within same sort_order, newest first
 router.get("/", (req, res) => {
-  const query = "SELECT id, caption, created_at FROM gallery ORDER BY sort_order ASC, created_at DESC";
+  const query = "SELECT id, caption, sort_order, created_at FROM gallery ORDER BY sort_order ASC, created_at DESC";
   db.query(query, (err, results) => {
     if (err) {
       console.error("Error fetching gallery:", err);
       return res.status(500).json({ error: "Error fetching gallery" });
     }
     res.json(results);
+  });
+});
+
+// PUT — reorder gallery images (admin only)
+router.put("/reorder", authenticateAdmin, (req, res) => {
+  const { order } = req.body; // Array of image IDs in desired order
+
+  if (!Array.isArray(order) || order.length === 0) {
+    return res.status(400).json({ error: "Order array is required" });
+  }
+
+  // Build batch update
+  let completed = 0;
+  let hasError = false;
+
+  order.forEach(function(imageId, index) {
+    db.query("UPDATE gallery SET sort_order = ? WHERE id = ?", [index + 1, imageId], function(err) {
+      if (err && !hasError) {
+        hasError = true;
+        console.error("Error reordering gallery:", err);
+        return res.status(500).json({ error: "Error reordering" });
+      }
+      completed++;
+      if (completed === order.length && !hasError) {
+        res.json({ message: "Gallery reordered successfully" });
+      }
+    });
   });
 });
 
@@ -40,12 +68,10 @@ router.post("/", authenticateAdmin, (req, res) => {
     return res.status(400).json({ error: "Image too large. Max 2MB." });
   }
 
-  // Get next sort order
-  db.query("SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM gallery", (err, results) => {
-    const sortOrder = results ? results[0].next_order : 1;
-
-    const query = "INSERT INTO gallery (image_data, caption, sort_order) VALUES (?, ?, ?)";
-    db.query(query, [image_data, caption || null, sortOrder], (err, result) => {
+  // Push all existing sort orders up by 1, then insert new at 0
+  db.query("UPDATE gallery SET sort_order = sort_order + 1", (err) => {
+    const query = "INSERT INTO gallery (image_data, caption, sort_order) VALUES (?, ?, 0)";
+    db.query(query, [image_data, caption || null], (err, result) => {
       if (err) {
         console.error("Error uploading image:", err);
         return res.status(500).json({ error: "Error uploading image" });
