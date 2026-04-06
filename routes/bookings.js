@@ -386,8 +386,8 @@ router.post("/create", async (req, res) => {
   }
 });
 
-// GET request to retrieve all bookings
-router.get("/", (req, res) => {
+// GET request to retrieve all bookings (admin only)
+router.get("/", authenticateAdmin, (req, res) => {
   const query = "SELECT * FROM bookings";
   db.query(query, (err, results) => {
     if (err) {

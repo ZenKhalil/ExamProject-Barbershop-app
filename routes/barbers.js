@@ -3,9 +3,25 @@ const router = express.Router();
 const db = require("../db");
 const authenticateAdmin = require("./authenticateAdmin");
 
-// GET — fetch all barbers
+const jwt = require("jsonwebtoken");
+
+// GET — fetch barbers (public: name only, admin: full data with email)
 router.get("/", (req, res) => {
-  const query = "SELECT * FROM barbers";
+  // Check if request has valid admin token
+  let isAdmin = false;
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const token = authHeader.split(" ")[1];
+    try {
+      jwt.verify(token, process.env.JWT_SECRET);
+      isAdmin = true;
+    } catch (e) { /* not admin, that's fine */ }
+  }
+
+  const query = isAdmin
+    ? "SELECT * FROM barbers"
+    : "SELECT barber_id, name FROM barbers";
+
   db.query(query, (err, results) => {
     if (err) {
       res.status(500).json({ error: "Error fetching barbers" });
