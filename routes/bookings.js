@@ -37,8 +37,9 @@ const queryDatabase = (query, params) => {
 
 // Function to format date consistently (avoid timezone shifts)
 const formatDateForDB = (dateString) => {
-  // Already in YYYY-MM-DD format, no conversion needed
-  return dateString;
+  // Ensure we're working with the date as-is, without timezone conversion
+  const date = new Date(dateString + "T00:00:00");
+  return date.toISOString().split("T")[0];
 };
 
 // Function to create a local datetime without timezone conversion
@@ -187,7 +188,7 @@ router.post("/create", async (req, res) => {
 
   try {
     // Fetch the barber's name
-    const barberQuery = `SELECT name AS barber_name FROM barbers WHERE barber_id = ?`;
+    const barberQuery = `SELECT name AS barber_name, email AS barber_email FROM barbers WHERE barber_id = ?`;
     const barberResults = await queryDatabase(barberQuery, [barber_id]);
 
     if (barberResults.length === 0) {
@@ -196,6 +197,7 @@ router.post("/create", async (req, res) => {
     }
 
     const barber_name = barberResults[0].barber_name;
+    const barber_email = barberResults[0].barber_email;
 
     // Format the booking date to ensure consistency
     const formattedBookingDate = formatDateForDB(booking_date);
@@ -334,6 +336,36 @@ router.post("/create", async (req, res) => {
     sendEmail(ownerMailOptions)
       .then(() => console.log("Owner email sent successfully."))
       .catch((err) => console.error("Failed to send owner email:", err.message));
+
+    // Send notification to barber if they have an email set
+    if (barber_email) {
+      const barberMailOptions = {
+        from: EMAIL_USERNAME,
+        to: barber_email,
+        subject: "New Booking — " + customer_name + " on " + formattedBookingDate,
+        text: "Hello " + barber_name + ",\n\n" +
+          "You have a new booking:\n\n" +
+          "Customer: " + customer_name + "\n" +
+          "Date: " + formattedBookingDate + "\n" +
+          "Time: " + booking_time + "\n" +
+          "Services: " + serviceNames + "\n" +
+          "Duration: " + totalDuration + " min\n" +
+          (customer_phone ? "Phone: " + customer_phone + "\n" : "") +
+          "\nSee you at the salon!\n— Salon Sindbad",
+        attachments: [
+          {
+            filename: "new-booking.ics",
+            content: icsContent,
+            contentType: "text/calendar",
+            method: "REQUEST",
+          },
+        ],
+      };
+
+      sendEmail(barberMailOptions)
+        .then(() => console.log("Barber notification sent to " + barber_email))
+        .catch((err) => console.error("Failed to send barber email:", err.message));
+    }
 
     // Send success response
     return res.status(201).json({
