@@ -62,24 +62,44 @@ router.put("/:barberId", authenticateAdmin, (req, res) => {
 router.delete("/:barberId", authenticateAdmin, (req, res) => {
   const { barberId } = req.params;
 
-  // First delete related availability records
-  const deleteAvail = "DELETE FROM barber_availability WHERE barber_id = ?";
-  db.query(deleteAvail, [barberId], (err) => {
+  // Delete in order: booking_services → bookings → barber_availability → barber
+  const deleteBookingServices = `
+    DELETE bs FROM booking_services bs 
+    INNER JOIN bookings b ON bs.booking_id = b.booking_id 
+    WHERE b.barber_id = ?`;
+  
+  db.query(deleteBookingServices, [barberId], (err) => {
     if (err) {
-      console.error("Error deleting barber availability:", err);
+      console.error("Error deleting booking services:", err);
       return res.status(500).json({ error: "Error deleting barber data" });
     }
 
-    const query = "DELETE FROM barbers WHERE barber_id = ?";
-    db.query(query, [barberId], (err, result) => {
+    const deleteBookings = "DELETE FROM bookings WHERE barber_id = ?";
+    db.query(deleteBookings, [barberId], (err) => {
       if (err) {
-        console.error("Error deleting barber:", err);
-        return res.status(500).json({ error: "Error deleting barber" });
+        console.error("Error deleting bookings:", err);
+        return res.status(500).json({ error: "Error deleting barber bookings" });
       }
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ error: "Barber not found" });
-      }
-      res.status(200).json({ message: "Barber deleted successfully" });
+
+      const deleteAvail = "DELETE FROM barber_availability WHERE barber_id = ?";
+      db.query(deleteAvail, [barberId], (err) => {
+        if (err) {
+          console.error("Error deleting availability:", err);
+          return res.status(500).json({ error: "Error deleting barber availability" });
+        }
+
+        const deleteBarber = "DELETE FROM barbers WHERE barber_id = ?";
+        db.query(deleteBarber, [barberId], (err, result) => {
+          if (err) {
+            console.error("Error deleting barber:", err);
+            return res.status(500).json({ error: "Error deleting barber" });
+          }
+          if (result.affectedRows === 0) {
+            return res.status(404).json({ error: "Barber not found" });
+          }
+          res.status(200).json({ message: "Barber deleted successfully" });
+        });
+      });
     });
   });
 });
