@@ -79,6 +79,7 @@ const adminRouter = require("./routes/admin");
 const barberAvailabilityRouter = require("./routes/barber_availability");
 const settingsRouter = require("./routes/settings");
 //const mapRouter = require("./routes/map");
+const legalRouter = require("./routes/legal");
 
 // Use the routes
 app.use("/api/bookings", bookingsRouter);
@@ -88,6 +89,7 @@ app.use("/api/admin", adminRouter);
 app.use("/api/admin/settings", settingsRouter);
 app.use("/api/barbers", barberAvailabilityRouter); // Fixed route path
 //app.use("/api/map", mapRouter);
+app.use("/api/legal", legalRouter);
 
 // Set up Nodemailer for sending email confirmations
 const transporter = nodemailer.createTransport({
